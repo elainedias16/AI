@@ -7,7 +7,8 @@ from sys import exit
 pygame.init()
 
 # Valid values: HUMAN_MODE or AI_MODE
-GAME_MODE = "AI_MODE"
+# GAME_MODE = "AI_MODE"
+GAME_MODE = "HUMAN_MODE"
 RENDER_GAME = True #With graphic interface
 # RENDER_GAME = False #Without graphic interface
 
@@ -204,7 +205,7 @@ class Bird(Obstacle):
         SCREEN.blit(self.image[self.index // 10], self.rect)
         self.index += 1
 
-
+#My Classifier : KNN
 class KeyClassifier:
     def __init__(self, state):
         pass
@@ -213,6 +214,9 @@ class KeyClassifier:
         pass
 
     def updateState(self, state):
+        pass
+
+    def initialize_database():
         pass
 
 
@@ -250,7 +254,7 @@ def playerKeySelector():
         return "K_DOWN"
     else:
         return "K_NO"
-
+    
 
 def playGame():
     global game_speed, x_pos_bg, y_pos_bg, points, obstacles
@@ -269,6 +273,21 @@ def playGame():
     obstacles = []
     death_count = 0
     spawn_dist = 0
+
+    def create_initial_state(filename):
+        with open(filename, 'a') as f:
+            f.write(str(distance) + ',' + str(game_speed ) + ',' + str(obHeight) + ',' + str(nextObDistance) + '\n')
+
+    def create_initial_target(filename):
+          with open(filename, 'a') as f:
+            if userInput == 'K_UP':
+                f.write('1' + '\n')
+            elif userInput == 'K_DOWN':
+                f.write('0' + '\n')
+            else:
+                f.write('-1' + '\n')
+            # f.write(int((userInput)) + '\n')
+
 
     def score():
         global points, game_speed
@@ -322,6 +341,9 @@ def playGame():
 
         if GAME_MODE == "HUMAN_MODE":
             userInput = playerKeySelector()
+            create_initial_state("data/initial_state.txt")
+            create_initial_target("data/initial_target.txt")
+
         else:
             userInput = aiPlayer.keySelector(distance, obHeight, game_speed, obType, nextObDistance, nextObHeight,
                                              nextObType)
@@ -364,6 +386,13 @@ def playGame():
                     pygame.time.delay(2000)
                 death_count += 1
                 return points
+            
+        # create_initial_state("data/initial_state.txt")
+        # create_initial_target("data/initial_target.txt")
+            
+
+    
+ 
 
 
 # Change State Operator
@@ -416,7 +445,6 @@ from scipy import stats
 import numpy as np
 
 
-
 def manyPlaysResults(rounds):
     results = []
     for round in range(rounds):
@@ -436,5 +464,6 @@ def main():
     npRes = np.asarray(res)
     print(res, npRes.mean(), npRes.std(), value)
 
+    print()
 
 main()
