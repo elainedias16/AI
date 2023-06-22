@@ -1,4 +1,4 @@
-from collections import Counter
+# from collections import Counter
 import pygame
 import os
 import random
@@ -209,48 +209,66 @@ class Bird(Obstacle):
 
 #My Classifier : KNN
 class KeyClassifier:
-    def __init__(self, state):
+    def __init__(self):
         pass
-        #initial_state = initial_state
-
-  
-    def euclidian_distance(P1, P2):
+    
+    def euclidian_distance(self, P1, P2):
         distance = 0
         for i in range(len(P1)):
             distance += (P1[i] - P2[i]) ** 2
             
         distance = distance ** (1/2) #sqrt
         return distance
-    #knn
-    def get_neighbors(self, states, actual_state, targets, k):
+    
+    def count_classes(self, items):
+        counts = {}
+        for item in items:
+            if item in counts:
+                counts[item] += 1
+            else:
+                counts[item] = 1
+        return counts
+
+
+    def get_neighbors(self , states, actual_state, targets, k):
         distances = []
         for state in states:
-            distance = self.euclidean_distances(state, actual_state) 
-            distances.append((targets[(state)], distance))
-        distances.sort(key=lambda x: x[1]) #teoricamente ordena em ordem crescente, talvez eu tenha q implementar na mão dps
+            distance = self.euclidian_distance(state, actual_state)
+            index = states.index(state)
+            distances.append([targets[index], distance])
+            #distances.append([state, distance])
 
+        distances.sort(key=lambda x: x[1]) 
+        #Como fazer se empatar?
         #Getting neighbors
         neighbors = []
-        classes = []
         for i in range(0, k):
             neighbors.append(distances[i])
 
         return neighbors
     
-    def knn(self, states, actual_state, neighbors, targets, k):
-        neighbors = self.get_neighbors(states, actual_state, k)
-        classes = [neighbor[0] for neighbor in neighbors] 
-        count = Counter(classes)
-        return count.most_common(1)[0][0]  # Retornar a classe mais comum
+    def knn(self, states, actual_state, targets, neighbors, k):
 
-
-
+        neighbors = self.get_neighbors(states, actual_state, targets, k)
+        print(neighbors)
+        classes = [neighbor[0] for neighbor in neighbors]
+        #count = Counter(classes)
+        # print(count.most_common(1)[0][0])
+        # return count.most_common(1)[0][0]  # Retornar a classe mais comum
+        count = self.count_classes(classes)
+        clf = max(count, key=count.get)
+        #Como fazer se empatar? DUas ou mais distâncias máximas para diferentes clf 1 0 -1
+        #Fazer uma função
+        print(clf)
+        return clf
+       
 
     def keySelector(self, distance, obHeight, speed, obType, nextObDistance, nextObHeight, nextObType):
         pass
 
+
     def updateState(self, state):
-        pass
+        self.state = state
 
 
 
@@ -524,27 +542,18 @@ def main():
 
     ############################
     #Meu código:
+    scalar = StandardScaler()
     initial_target = load_initial_target('data/initial_target.txt')
     initial_state = load_initial_state('data/initial_state.txt')
-    # print(initial_state[0])
-    # print(initial_state[1])
-    # print('\n')
-    # print(initial_state)
-    clf = KeyClassifier
-    # dist = clf.euclidian_distance(initial_state[0], initial_state[1])
-    # print(dist)
-    dist = clf.euclidian_distance(initial_state[1], initial_state[2])
-    print(dist)
 
-    # dist = clf.euclidian_distance([3, 5], [6 , 1])
-    # print('dist agr')
+    clf = KeyClassifier()
+    test_state = 990,10,58,2000
+    #clf.get_neighbors(initial_state, test_state, initial_target, 3)
+    #print(clf.get_neighbors(initial_state, test_state, initial_target, 3))
 
-    # print(dist)
-
-    # print('chehuei aqui')
-
-    scalar = StandardScaler()
-
+    k = 3
+    neighbors = clf.get_neighbors(initial_state, test_state, initial_target, k)
+    clf.knn(initial_state, test_state , initial_target, neighbors, k)
 
 
 
