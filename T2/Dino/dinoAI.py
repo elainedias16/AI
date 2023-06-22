@@ -1,8 +1,10 @@
+from collections import Counter
 import pygame
 import os
 import random
 import time
 from sys import exit
+
 
 pygame.init()
 
@@ -209,6 +211,40 @@ class Bird(Obstacle):
 class KeyClassifier:
     def __init__(self, state):
         pass
+        #initial_state = initial_state
+
+  
+    def euclidian_distance(P1, P2):
+        distance = 0
+        for i in range(len(P1)):
+            distance += (P1[i] - P2[i]) ** 2
+            
+        distance = distance ** (1/2) #sqrt
+        return distance
+    #knn
+    def get_neighbors(self, states, actual_state, targets, k):
+        distances = []
+        for state in states:
+            distance = self.euclidean_distances(state, actual_state) 
+            distances.append((targets[(state)], distance))
+        distances.sort(key=lambda x: x[1]) #teoricamente ordena em ordem crescente, talvez eu tenha q implementar na mão dps
+
+        #Getting neighbors
+        neighbors = []
+        classes = []
+        for i in range(0, k):
+            neighbors.append(distances[i])
+
+        return neighbors
+    
+    def knn(self, states, actual_state, neighbors, targets, k):
+        neighbors = self.get_neighbors(states, actual_state, k)
+        classes = [neighbor[0] for neighbor in neighbors] 
+        count = Counter(classes)
+        return count.most_common(1)[0][0]  # Retornar a classe mais comum
+
+
+
 
     def keySelector(self, distance, obHeight, speed, obType, nextObDistance, nextObHeight, nextObType):
         pass
@@ -216,8 +252,7 @@ class KeyClassifier:
     def updateState(self, state):
         pass
 
-    def initialize_database():
-        pass
+
 
 
 def first(x):
@@ -274,10 +309,12 @@ def playGame():
     death_count = 0
     spawn_dist = 0
 
+    #Minha função para criar a base
     def create_initial_state(filename):
         with open(filename, 'a') as f:
             f.write(str(distance) + ',' + str(game_speed ) + ',' + str(obHeight) + ',' + str(nextObDistance) + '\n')
 
+    #Minha função para criar a base
     def create_initial_target(filename):
           with open(filename, 'a') as f:
             if userInput == 'K_UP':
@@ -286,8 +323,6 @@ def playGame():
                 f.write('0' + '\n')
             else:
                 f.write('-1' + '\n')
-            # f.write(int((userInput)) + '\n')
-
 
     def score():
         global points, game_speed
@@ -341,8 +376,8 @@ def playGame():
 
         if GAME_MODE == "HUMAN_MODE":
             userInput = playerKeySelector()
-            create_initial_state("data/initial_state.txt")
-            create_initial_target("data/initial_target.txt")
+            # create_initial_state("data/initial_state.txt")
+            # create_initial_target("data/initial_target.txt")
 
         else:
             userInput = aiPlayer.keySelector(distance, obHeight, game_speed, obType, nextObDistance, nextObHeight,
@@ -387,10 +422,7 @@ def playGame():
                 death_count += 1
                 return points
             
-        # create_initial_state("data/initial_state.txt")
-        # create_initial_target("data/initial_target.txt")
-            
-
+       
     
  
 
@@ -453,17 +485,69 @@ def manyPlaysResults(rounds):
     return (results, npResults.mean() - npResults.std())
 
 
+#Minha função
+def load_initial_state(filename):
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+        data = []
+        for line in lines:
+            line = line.strip()
+            line = line.split(',')
+            data.append([float(line[0]), float(line[1]), float(line[2]), float(line[3])])
+        return data
+
+#Minha função 
+def load_initial_target(filename):
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+        target = []
+        for line in lines:
+            line = line.strip()
+            target.append((float(line)))
+        return target
+
+#Meus imports:
+from sklearn.preprocessing import StandardScaler
+
 def main():
-    global aiPlayer
+    # global aiPlayer
 
-    initial_state = [(15, 250), (18, 350), (20, 450), (1000, 550)]
-    aiPlayer = KeySimplestClassifier(initial_state)
-    best_state, best_value = gradient_ascent(initial_state, 5000)
-    aiPlayer = KeySimplestClassifier(best_state)
-    res, value = manyPlaysResults(30)
-    npRes = np.asarray(res)
-    print(res, npRes.mean(), npRes.std(), value)
+    # initial_state = [(15, 250), (18, 350), (20, 450), (1000, 550)]
+    # aiPlayer = KeySimplestClassifier(initial_state)
+    # best_state, best_value = gradient_ascent(initial_state, 5000)
+    # aiPlayer = KeySimplestClassifier(best_state)
+    # res, value = manyPlaysResults(30)
+    # npRes = np.asarray(res)
+    # print(res, npRes.mean(), npRes.std(), value)
 
-    print()
+    # print()
+
+    ############################
+    #Meu código:
+    initial_target = load_initial_target('data/initial_target.txt')
+    initial_state = load_initial_state('data/initial_state.txt')
+    # print(initial_state[0])
+    # print(initial_state[1])
+    # print('\n')
+    # print(initial_state)
+    clf = KeyClassifier
+    # dist = clf.euclidian_distance(initial_state[0], initial_state[1])
+    # print(dist)
+    dist = clf.euclidian_distance(initial_state[1], initial_state[2])
+    print(dist)
+
+    # dist = clf.euclidian_distance([3, 5], [6 , 1])
+    # print('dist agr')
+
+    # print(dist)
+
+    # print('chehuei aqui')
+
+    scalar = StandardScaler()
+
+
+
+
+
 
 main()
