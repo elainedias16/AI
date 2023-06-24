@@ -1,4 +1,3 @@
-# from collections import Counter
 import pygame
 import os
 import random
@@ -9,8 +8,8 @@ from sys import exit
 pygame.init()
 
 # Valid values: HUMAN_MODE or AI_MODE
-# GAME_MODE = "AI_MODE"
-GAME_MODE = "HUMAN_MODE"
+GAME_MODE = "AI_MODE"
+# GAME_MODE = "HUMAN_MODE"
 RENDER_GAME = True #With graphic interface
 # RENDER_GAME = False #Without graphic interface
 
@@ -209,8 +208,11 @@ class Bird(Obstacle):
 
 #My Classifier : KNN
 class KeyClassifier:
-    def __init__(self):
-        pass
+    def __init__(self, states, targets, actual_state, k):
+        self.states = states
+        self.targets = targets
+        self.actual_state = actual_state
+        self.k = k
     
     def euclidian_distance(self, P1, P2):
         distance = 0
@@ -230,42 +232,40 @@ class KeyClassifier:
         return counts
 
 
-    def get_neighbors(self , states, actual_state, targets, k):
+    def get_neighbors(self):
         distances = []
-        for state in states:
-            distance = self.euclidian_distance(state, actual_state)
-            index = states.index(state)
-            distances.append([targets[index], distance])
+        for state in self.states:
+            distance = self.euclidian_distance(state, self.actual_state)
+            index = self.states.index(state)
             #distances.append([state, distance])
+            distances.append([self.targets[index], distance])
 
         distances.sort(key=lambda x: x[1]) 
-        #Como fazer se empatar?
+       
         #Getting neighbors
         neighbors = []
-        for i in range(0, k):
+        for i in range(0, self.k):
             neighbors.append(distances[i])
 
         return neighbors
-    
-    def knn(self, states, actual_state, targets, neighbors, k):
+     
 
-        neighbors = self.get_neighbors(states, actual_state, targets, k)
-        print(neighbors)
+    #This method is equivalent to keySelector of specification
+    def knn(self):
+        neighbors = self.get_neighbors()
         classes = [neighbor[0] for neighbor in neighbors]
-        #count = Counter(classes)
-        # print(count.most_common(1)[0][0])
-        # return count.most_common(1)[0][0]  # Retornar a classe mais comum
         count = self.count_classes(classes)
+
+        #In case of a tie, choose the first clf of count dictionary
         clf = max(count, key=count.get)
-        #Como fazer se empatar? DUas ou mais distâncias máximas para diferentes clf 1 0 -1
-        #Fazer uma função
-        print(clf)
         return clf
        
 
-    def keySelector(self, distance, obHeight, speed, obType, nextObDistance, nextObHeight, nextObType):
-        pass
-
+    # def keySelector(self, distance, obHeight, speed, obType, nextObDistance, nextObHeight, nextObType):
+    #     pass
+    
+    # def keySelector(self, distance, obHeight, speed, obType, nextObDistance, nextObHeight, nextObType):
+    #     pass
 
     def updateState(self, state):
         self.state = state
@@ -541,19 +541,20 @@ def main():
     # print()
 
     ############################
-    #Meu código:
+    #My code:
     scalar = StandardScaler()
     initial_target = load_initial_target('data/initial_target.txt')
     initial_state = load_initial_state('data/initial_state.txt')
 
-    clf = KeyClassifier()
     test_state = 990,10,58,2000
-    #clf.get_neighbors(initial_state, test_state, initial_target, 3)
-    #print(clf.get_neighbors(initial_state, test_state, initial_target, 3))
-
     k = 3
-    neighbors = clf.get_neighbors(initial_state, test_state, initial_target, k)
-    clf.knn(initial_state, test_state , initial_target, neighbors, k)
+    clf = KeyClassifier(initial_state, initial_target, test_state, k)
+   
+
+    neighbors = clf.get_neighbors()
+    print(neighbors)
+
+    clf.knn()
 
 
 
