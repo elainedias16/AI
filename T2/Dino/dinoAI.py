@@ -1,17 +1,20 @@
+import math
 import pygame
 import os
 import random
 import time
 from sys import exit
 
+from scipy import stats
+import numpy as np
 
 pygame.init()
 
 # Valid values: HUMAN_MODE or AI_MODE
 GAME_MODE = "AI_MODE"
 # GAME_MODE = "HUMAN_MODE"
-RENDER_GAME = True #With graphic interface
-# RENDER_GAME = False #Without graphic interface
+# RENDER_GAME = True #With graphic interface
+RENDER_GAME = False #Without graphic interface
 
 
 # Global Constants
@@ -443,8 +446,6 @@ def playGame():
        
     
  
-
-
 # Change State Operator
 def change_state(state, position, vs, vd):
     aux = state.copy()
@@ -477,6 +478,10 @@ def gradient_ascent(state, max_time):
     res, max_value = manyPlaysResults(3)
     better = True
     end = 0
+    # print('------------------')
+    # print(state)
+    # print('------------------')
+
     while better and end - start <= max_time:
         neighborhood = generate_neighborhood(state)
         better = False
@@ -491,8 +496,99 @@ def gradient_ascent(state, max_time):
     return state, max_value
 
 
-from scipy import stats
-import numpy as np
+# from scipy import stats
+# import numpy as np
+
+#Varejao function
+# def simulated_annealing_varejao(state,t,alfa,items,max_size,iter_max,max_time):
+#     solution = state
+#     max_value = evaluate_state(solution,items)
+#     start = time.process_time()
+#     end = 0
+    
+#     while t >= 1 and end-start <= max_time:        
+        
+#         for _ in range(iter_max):    
+#             neighborhood = generate_neighborhood(max_size,items,state)
+#             if neighborhood == []:
+#                 return solution,max_value,state_size(solution,values)                
+#             aux = random_state(neighborhood)
+#             aux_value = evaluate_state(aux,items)
+#             aux_size = state_size(aux,items)
+#             state_value = evaluate_state(state,items)
+#             if aux_value > state_value and aux_size <= max_size:
+#                 state = aux
+#                 if aux_value > max_value:
+#                     solution = aux
+#                     max_value = aux_value
+#             else:
+#                 if aux_size <= max_size:
+#                     if change_probability(aux_value,state_value,t):
+#                         state = aux
+#         t = t*alfa
+#         end = time.process_time()
+
+#     return solution, state_size(solution,items), max_value
+
+#My code
+#Escolhe um state dos states aleatoriamente e retorna esse state escolhido
+def random_state(states):
+    index = random.randint(0,len(states)-1)
+    return states[index]
+
+
+#My code
+# def simulated_annealing(states, targets, temperature, alpha, max_time ,iter_max):
+#     solution_states = states
+#     solution_targets = targets
+#     start = time.process_time()
+#     end = 0
+
+#     while temperature >= 1 and end-start <= max_time:
+#         neighborhood = generate_neighborhood(states)
+        
+
+
+
+
+
+
+#         temperature = temperature * alpha
+#         end = time.process_time() 
+#     return 0
+
+def evaluete_state(state):
+    pass
+
+
+def simulated_annealing(states, target, temperature, alpha, max_time ,iter_max):
+    new_states = []
+    for state in states:
+        new_states.append(simulated_annealing_aux(state, target, temperature, alpha, max_time ,iter_max))
+
+#fazer pra um state e dps chamar pra todoas em outra funcao com for
+def simulated_annealing_aux(state, target, temperature, alpha, max_time ,iter_max):
+    best_state = state
+
+    start = time.process_time()
+    end = 0
+
+    while temperature >= 1 and end-start <= max_time:
+
+        for _ in range(iter_max):
+            neighbors = generate_neighborhood(state)
+            aux = random_state(neighbors)
+
+            delta = evaluete_state(state) - evaluete_state(aux)
+            if delta <= 0  or (math.exp(-delta / temperature) > random.random(0, 1)) :
+                best_state = aux
+
+
+        temperature = temperature * alpha
+        end = time.process_time() 
+
+    return best_state
+
 
 
 def manyPlaysResults(rounds):
@@ -501,6 +597,9 @@ def manyPlaysResults(rounds):
         results += [playGame()]
     npResults = np.asarray(results)
     return (results, npResults.mean() - npResults.std())
+
+
+
 
 
 #Minha função
@@ -528,33 +627,41 @@ def load_initial_target(filename):
 from sklearn.preprocessing import StandardScaler
 
 def main():
-    # global aiPlayer
+    global aiPlayer
 
-    # initial_state = [(15, 250), (18, 350), (20, 450), (1000, 550)]
-    # aiPlayer = KeySimplestClassifier(initial_state)
-    # best_state, best_value = gradient_ascent(initial_state, 5000)
-    # aiPlayer = KeySimplestClassifier(best_state)
-    # res, value = manyPlaysResults(30)
-    # npRes = np.asarray(res)
-    # print(res, npRes.mean(), npRes.std(), value)
+    initial_state = [(15, 250), (18, 350), (20, 450), (1000, 550)]
+    aiPlayer = KeySimplestClassifier(initial_state)
+    # print('-----initial state---------')
+    # print(initial_state)
+    # print('--------------')
 
-    # print()
+    best_state, best_value = gradient_ascent(initial_state, 5000)
+    # print('-----Best state-----------')
+    # print(best_state)
+    # print('----------------')
+
+    aiPlayer = KeySimplestClassifier(best_state)
+    res, value = manyPlaysResults(30)
+    npRes = np.asarray(res)
+    print(res, npRes.mean(), npRes.std(), value)
+
+    print()
 
     ############################
     #My code:
-    scalar = StandardScaler()
-    initial_target = load_initial_target('data/initial_target.txt')
-    initial_state = load_initial_state('data/initial_state.txt')
+    # scalar = StandardScaler()
+    # initial_target = load_initial_target('data/initial_target.txt')
+    # initial_state = load_initial_state('data/initial_state.txt')
 
-    test_state = 990,10,58,2000
-    k = 3
-    clf = KeyClassifier(initial_state, initial_target, test_state, k)
+    # test_state = 990,10,58,2000
+    # k = 3
+    # clf = KeyClassifier(initial_state, initial_target, test_state, k)
    
 
-    neighbors = clf.get_neighbors()
-    print(neighbors)
+    # neighbors = clf.get_neighbors()
+    # print(neighbors)
 
-    clf.knn()
+    # clf.knn()
 
 
 
