@@ -10,11 +10,15 @@ import numpy as np
 
 pygame.init()
 
+# global actual_state
+global aiPlayer
+
+
 # Valid values: HUMAN_MODE or AI_MODE
 GAME_MODE = "AI_MODE"
 # GAME_MODE = "HUMAN_MODE"
-# RENDER_GAME = True #With graphic interface
-RENDER_GAME = False #Without graphic interface
+RENDER_GAME = True #With graphic interface
+# RENDER_GAME = False #Without graphic interface
 
 
 # Global Constants
@@ -211,10 +215,16 @@ class Bird(Obstacle):
 
 #My Classifier : KNN
 class KeyClassifier:
-    def __init__(self, states, targets, actual_state, k):
+    # def __init__(self, states, targets, actual_state, k):
+    #     self.states = states
+    #     self.targets = targets
+    #     self.actual_state = actual_state
+    #     self.k = k
+
+    def __init__(self, states, targets, k):
         self.states = states
         self.targets = targets
-        self.actual_state = actual_state
+        #self.actual_state = actual_state
         self.k = k
     
     def euclidian_distance(self, P1, P2):
@@ -235,10 +245,10 @@ class KeyClassifier:
         return counts
 
 
-    def get_neighbors(self):
+    def get_neighbors(self, actual_state):
         distances = []
         for state in self.states:
-            distance = self.euclidian_distance(state, self.actual_state)
+            distance = self.euclidian_distance(state, actual_state)
             index = self.states.index(state)
             #distances.append([state, distance])
             distances.append([self.targets[index], distance])
@@ -253,26 +263,30 @@ class KeyClassifier:
         return neighbors
      
 
-    #This method is equivalent to keySelector of specification
-    def knn(self):
-        neighbors = self.get_neighbors()
+    #KNN
+    def keySelector(self, distance, obHeight, speed, obType, nextObDistance, nextObHeight, nextObType):
+        actual_state = [distance, speed, obHeight, nextObDistance]
+        neighbors = self.get_neighbors(actual_state)
         classes = [neighbor[0] for neighbor in neighbors]
         count = self.count_classes(classes)
 
         #In case of a tie, choose the first clf of count dictionary
         clf = max(count, key=count.get)
+        self.updateState(actual_state)
         return clf
        
 
     # def keySelector(self, distance, obHeight, speed, obType, nextObDistance, nextObHeight, nextObType):
-    #     pass
+    #     print(distance)
     
-    # def keySelector(self, distance, obHeight, speed, obType, nextObDistance, nextObHeight, nextObType):
-    #     pass
-
+   
+    # def updateState(self, state):
+    #     self.state = state
+    #     return state
+    
     def updateState(self, state):
         self.state = state
-
+        
 
 
 
@@ -403,6 +417,8 @@ def playGame():
         else:
             userInput = aiPlayer.keySelector(distance, obHeight, game_speed, obType, nextObDistance, nextObHeight,
                                              nextObType)
+            # userInput = aiPlayer.keySelector(distance, game_speed, obHeight, nextObDistance)
+        
 
         if len(obstacles) == 0 or obstacles[-1].getXY()[0] < spawn_dist:
             spawn_dist = random.randint(0, 670)
@@ -536,38 +552,41 @@ def random_state(states):
     index = random.randint(0,len(states)-1)
     return states[index]
 
-
-#My code
-# def simulated_annealing(states, targets, temperature, alpha, max_time ,iter_max):
-#     solution_states = states
-#     solution_targets = targets
-#     start = time.process_time()
-#     end = 0
-
-#     while temperature >= 1 and end-start <= max_time:
-#         neighborhood = generate_neighborhood(states)
-        
-
-
-
-
-
-
-#         temperature = temperature * alpha
-#         end = time.process_time() 
-#     return 0
-
+#Is it the best way to do that?
 def evaluete_state(state):
+    value = 0
+    for i in range(0,len(state)):
+        value += state[i]
+    return value
+
+
+def generate_neighborhood_simulated_annealing(state):
     pass
 
 
-def simulated_annealing(states, target, temperature, alpha, max_time ,iter_max):
+def generate_neighbor_simulated_annealing(state):
+    new_state = state
+    for i in range(len(state)):
+        if i == len(state) - 1: 
+            new_state[i] = random.randint(-1, 1)  
+        else:
+            new_state[i] = random.random() 
+    return new_state
+
+
+
+def simulated_annealing(states, temperature, alpha, max_time , iter_max):
     new_states = []
+    res, max_value = manyPlaysResults(3)
+
     for state in states:
-        new_states.append(simulated_annealing_aux(state, target, temperature, alpha, max_time ,iter_max))
+        new_states.append(simulated_annealing_aux(state, temperature, alpha, max_time , iter_max))
+    return new_states
+
 
 #fazer pra um state e dps chamar pra todoas em outra funcao com for
-def simulated_annealing_aux(state, target, temperature, alpha, max_time ,iter_max):
+#na hora de chamar juntar o state com o target
+def simulated_annealing_aux(state, temperature, alpha, max_time , iter_max):
     best_state = state
 
     start = time.process_time()
@@ -576,12 +595,21 @@ def simulated_annealing_aux(state, target, temperature, alpha, max_time ,iter_ma
     while temperature >= 1 and end-start <= max_time:
 
         for _ in range(iter_max):
-            neighbors = generate_neighborhood(state)
-            aux = random_state(neighbors)
+            # neighborhood = generate_neighborhood_simulated_annealing(state)
+            # neighbor = random_state(neighborhood)
 
-            delta = evaluete_state(state) - evaluete_state(aux)
-            if delta <= 0  or (math.exp(-delta / temperature) > random.random(0, 1)) :
-                best_state = aux
+            neighbor = generate_neighbor_simulated_annealing(state)
+
+            cost_neighbor = evaluete_state(neighbor)
+            cost_state = evaluete_state(state)
+            delta = cost_state - cost_neighbor
+
+
+            if delta > 0:
+                best_state = neighbor
+
+            elif(random.uniform(0, 1) < math.exp(-delta / temperature)):
+                best_state = neighbor
 
 
         temperature = temperature * alpha
@@ -599,6 +627,10 @@ def manyPlaysResults(rounds):
     return (results, npResults.mean() - npResults.std())
 
 
+#My function
+def get_actual_state(distance, obHeight, speed, obType, nextObDistance, nextObHeight, nextObType):
+    actual_state = [distance, speed, obHeight, nextObDistance]
+    return actual_state
 
 
 
@@ -622,49 +654,113 @@ def load_initial_target(filename):
             line = line.strip()
             target.append((float(line)))
         return target
+#My code    
+def joining_state_target(states, targets):
+    states_targets = []
+
+    for i in range(len(states)):
+        subarray = states[i].copy()  
+        subarray.append(targets[i])  
+        states_targets.append(subarray)  
+
+    return states_targets
+
+#My code    
+def separating_states_targets(states_targets):
+    states = []
+    targets = []
+
+    for subarray in states_targets:
+        state = subarray[:-1]  
+        states.append(state)
+
+        target = subarray[-1] 
+        targets.append(target)
+
+    return states, targets
+
+
 
 #Meus imports:
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
+
+# def normalize_data(data):
+#     scaler = MinMaxScaler(feature_range=(0, 1))
+#     normalized_data = scaler.fit_transform(data)
+#     return normalized_data
+
+def normalize_data(data):
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    normalized_data = scaler.fit_transform(data)
+    normalized_data = normalized_data.tolist()  # Converter para uma lista Python
+    return normalized_data
 
 def main():
+    # global aiPlayer
+
+    # initial_state = [(15, 250), (18, 350), (20, 450), (1000, 550)]
+    # aiPlayer = KeySimplestClassifier(initial_state)
+    # # print('-----initial state---------')
+    # # print(initial_state)
+    # # print('--------------')
+
+    # best_state, best_value = gradient_ascent(initial_state, 5000)
+    # # print('-----Best value-----------')
+    # # print(best_value)
+    # # print('----------------')
+
+    # aiPlayer = KeySimplestClassifier(best_state)
+    # res, value = manyPlaysResults(30)
+    # npRes = np.asarray(res)
+    # print(res, npRes.mean(), npRes.std(), value)
+
+    # print()
+
+    ###########################
+    #My code:
     global aiPlayer
+    initial_target = load_initial_target('data/initial_target.txt')
+    initial_state = load_initial_state('data/initial_state.txt')
 
-    initial_state = [(15, 250), (18, 350), (20, 450), (1000, 550)]
-    aiPlayer = KeySimplestClassifier(initial_state)
-    # print('-----initial state---------')
+
+    initial_state = normalize_data(initial_state)
     # print(initial_state)
-    # print('--------------')
 
-    best_state, best_value = gradient_ascent(initial_state, 5000)
-    # print('-----Best state-----------')
-    # print(best_state)
-    # print('----------------')
+    k = 3
+    temperature = 10
+    alpha = 0.1
+    max_time = 120
+    iter_max = 10
 
-    aiPlayer = KeySimplestClassifier(best_state)
+    # initial_target = load_initial_target('data/initial_target_test.txt')
+    # initial_state = load_initial_state('data/initial_state_test.txt')
+    
+    aiPlayer = KeyClassifier(initial_state, initial_target, k)
+    playGame()
+
+   
+    states_targets = joining_state_target(initial_state, initial_target)
+    new_states_targets = simulated_annealing(states_targets, temperature, alpha, max_time , iter_max)
+
+    new_states, new_targets = separating_states_targets(new_states_targets)
+    new_states = normalize_data(new_states)
+
+    aiPlayer = KeyClassifier(new_states, new_targets, k)
+
+
     res, value = manyPlaysResults(30)
     npRes = np.asarray(res)
     print(res, npRes.mean(), npRes.std(), value)
 
     print()
 
-    ############################
-    #My code:
-    # scalar = StandardScaler()
-    # initial_target = load_initial_target('data/initial_target.txt')
-    # initial_state = load_initial_state('data/initial_state.txt')
 
-    # test_state = 990,10,58,2000
-    # k = 3
-    # clf = KeyClassifier(initial_state, initial_target, test_state, k)
-   
-
-    # neighbors = clf.get_neighbors()
-    # print(neighbors)
-
-    # clf.knn()
+    #IMPORTANT
+    #O knn precisa dos states e dos targets seperados
+    #o simulated annealing precisa deles juntos
 
 
 
-
+    #print(userInput)
 
 main()
