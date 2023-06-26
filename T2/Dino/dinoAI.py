@@ -48,6 +48,19 @@ CLOUD = pygame.image.load(os.path.join("Assets/Other", "Cloud.png"))
 
 BG = pygame.image.load(os.path.join("Assets/Other", "Track.png"))
 
+#base
+def normalize_data(data):
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    normalized_data = scaler.fit_transform(data)
+    normalized_data = normalized_data.tolist() 
+    return normalized_data
+
+#para função, um array so
+def normalize_array(array):
+    min_val = np.min(array)
+    max_val = np.max(array)
+    normalized_array = (array - min_val) / (max_val - min_val)
+    return normalized_array
 
 class Dinosaur:
     X_POS = 90
@@ -266,14 +279,24 @@ class KeyClassifier:
     #KNN
     def keySelector(self, distance, obHeight, speed, obType, nextObDistance, nextObHeight, nextObType):
         actual_state = [distance, speed, obHeight, nextObDistance]
+        actual_state = normalize_array(actual_state)
+
+        #print(actual_state)
+
         neighbors = self.get_neighbors(actual_state)
         classes = [neighbor[0] for neighbor in neighbors]
         count = self.count_classes(classes)
-
+        # print('-----------')
+        # print(count)
         #In case of a tie, choose the first clf of count dictionary
         clf = max(count, key=count.get)
-        self.updateState(actual_state)
-        return clf
+        #self.updateState(actual_state)
+        # print(clf)
+        if(clf == 1):
+            return 'K_UP'
+        elif clf == 0:
+            return 'K_DOWN'
+        return 'K_NO'
        
 
     # def keySelector(self, distance, obHeight, speed, obType, nextObDistance, nextObHeight, nextObType):
@@ -689,11 +712,11 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 #     normalized_data = scaler.fit_transform(data)
 #     return normalized_data
 
-def normalize_data(data):
-    scaler = MinMaxScaler(feature_range=(0, 1))
-    normalized_data = scaler.fit_transform(data)
-    normalized_data = normalized_data.tolist()  # Converter para uma lista Python
-    return normalized_data
+# def normalize_data(data):
+#     scaler = MinMaxScaler(feature_range=(0, 1))
+#     normalized_data = scaler.fit_transform(data)
+#     normalized_data = normalized_data.tolist()  # Converter para uma lista Python
+#     return normalized_data
 
 def main():
     # global aiPlayer
@@ -723,6 +746,8 @@ def main():
     initial_state = load_initial_state('data/initial_state.txt')
 
 
+    # initial_state = [[1500,10,0,2000],
+    #                  []]
     initial_state = normalize_data(initial_state)
     # print(initial_state)
 
