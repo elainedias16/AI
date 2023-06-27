@@ -752,10 +752,10 @@ def main():
     # print(initial_state)
 
     k = 3
-    temperature = 10
+    temperature = 200
     alpha = 0.1
     max_time = 120
-    iter_max = 10
+    iter_max = 1000
 
     # initial_target = load_initial_target('data/initial_target_test.txt')
     # initial_state = load_initial_state('data/initial_state_test.txt')
