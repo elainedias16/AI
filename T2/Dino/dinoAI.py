@@ -16,7 +16,7 @@ global aiPlayer
 
 # Valid values: HUMAN_MODE or AI_MODE
 GAME_MODE = "AI_MODE"
-# GAME_MODE = "HUMAN_MODE"
+#GAME_MODE = "HUMAN_MODE"
 # RENDER_GAME = True #With graphic interface
 RENDER_GAME = False #Without graphic interface
 
@@ -48,19 +48,24 @@ CLOUD = pygame.image.load(os.path.join("Assets/Other", "Cloud.png"))
 
 BG = pygame.image.load(os.path.join("Assets/Other", "Track.png"))
 
-#base
-def normalize_data(data):
-    scaler = MinMaxScaler(feature_range=(0, 1))
-    normalized_data = scaler.fit_transform(data)
-    normalized_data = normalized_data.tolist() 
+
+def normalize_data(states):
+    normalized_data = []
+    for state in states:
+        clf = state[-1]
+        state = state[:-1]
+        normalized_state = normalize_array(state)
+        normalized_state.append(clf)
+        normalized_data.append(normalized_state)
     return normalized_data
 
-#para função, um array so
+
 def normalize_array(array):
-    min_val = np.min(array)
-    max_val = np.max(array)
-    normalized_array = (array - min_val) / (max_val - min_val)
+    min_val = min(array)
+    max_val = max(array)
+    normalized_array = [(val - min_val) / (max_val - min_val) for val in array]
     return normalized_array
+
 
 class Dinosaur:
     X_POS = 90
@@ -409,7 +414,7 @@ def playGame():
 
         if GAME_MODE == "HUMAN_MODE":
             userInput = playerKeySelector()
-            # create_initial_states('data/initial_states_with_target.txt')
+            #create_initial_states('data/initial_states_with_target.txt')
 
         else:
             userInput = aiPlayer.keySelector(distance, obHeight, game_speed, obType, nextObDistance, nextObHeight,
@@ -481,6 +486,7 @@ def generate_neighborhood(state):
         for s in new_states:
             if s != []:
                 neighborhood.append(s)
+
     return neighborhood
 
 
@@ -507,63 +513,64 @@ def gradient_ascent(state, max_time):
 
 
 
+# state = [distance, speed, obHeight, nextObDistance]
+# Neighborhood
+def generate_neighborhood_sm(states): 
+    neighborhood = []
+    for state in states:
+        new_state= [state[0], state[1], state[2], state[3] + random.uniform(0, 1) , state[4]]
+        new_state = normalize_array(new_state)
+        neighborhood.append(new_state)
 
-#Is it the best way to do that?
-def evaluete_state(state):
+    return neighborhood
+
+
+def evaluete_state(states):
     value = 0
-    for i in range(0,len(state)):
-        value += state[i]
+    for state in states:
+        for i in range(0, len(state)):
+            value += state[i]
+
     return value
 
-
-
-def generate_neighbor_simulated_annealing(state):
-    new_state = state
-    for i in range(len(state)):
-        if i == len(state) - 1: 
-            new_state[i] = random.randint(0, 1)
-        else:
-            new_state[i] = random.random() 
-    return new_state
-
-
-
-def simulated_annealing(states, temperature, alpha, max_time , iter_max):
-    new_states = []
+#For the entire base
+def simulated_annealing(states, temperature, alpha, max_time , iter_max, k):
+    best_states = states
     res, max_value = manyPlaysResults(3)
-
-    for state in states:
-        new_states.append(simulated_annealing_aux(state, temperature, alpha, max_time , iter_max))
-    return new_states
-
-#do for one state
-def simulated_annealing_aux(state, temperature, alpha, max_time , iter_max):
-    best_state = state
-
     start = time.process_time()
     end = 0
 
     while temperature >= 1 and end-start <= max_time:
 
         for _ in range(iter_max):
-            neighbor = generate_neighbor_simulated_annealing(state)
+            neighbor = generate_neighborhood_sm(states)
 
             cost_neighbor = evaluete_state(neighbor)
-            cost_state = evaluete_state(state)
-            delta = cost_state - cost_neighbor
+            cost_states = evaluete_state(states)
+
+            delta = cost_states - cost_neighbor
 
 
             if delta > 0:
-                best_state = neighbor
+                new_states = neighbor
+            elif(random.uniform(0,1) < math.exp(-delta / temperature)):
+                new_states = neighbor
 
-            elif(random.uniform(0, 1) < math.exp(-delta / temperature)):
-                best_state = neighbor
 
+            aiPlayer = KeyClassifier(new_states, k)
+            res, value = manyPlaysResults(3)
+            if value > max_value:
+                best_states = new_states
+                print('---------')
+                max_value = value
+                print(max_value)
+          
 
         temperature = temperature * alpha
         end = time.process_time() 
 
-    return best_state
+    return best_states, max_value
+
 
 
 
@@ -582,10 +589,20 @@ def load_states(filename):
         data = []
         for line in lines:
             line = line.strip()
-            line = line.split(',')
+            line = line.split(',')    
             data.append([float(line[0]), float(line[1]), float(line[2]), float(line[3]), float(line[4])])
         return data
 
+
+# def get_base_training():
+#     with open(filename, 'r') as f:
+#         lines = f.readlines()
+#         data = []
+#         for line in lines:
+#             line = line.strip()
+#             line = line.split(',')    
+#             data.append([float(line[0]), float(line[1]), float(line[2]), float(line[3]), float(line[4])])
+#         return data
 
 
 def main():
@@ -607,21 +624,20 @@ def main():
     k = 3
     temperature = 200
     alpha = 0.1
-    max_time = 120
-    iter_max = 1000
+    max_time = 500
+    iter_max = 200
 
-    initial_states_with_targets = load_states('data/initial_states2.txt')
+    initial_states_with_targets = load_states('data/initial_states_with_target.txt')
+
     initial_states_with_targets= normalize_data(initial_states_with_targets)
-
-  
+   
     aiPlayer = KeyClassifier(initial_states_with_targets, k)
     playGame()
 
-    new_states_targets = simulated_annealing(initial_states_with_targets, temperature, alpha, max_time , iter_max)
+    # new_states_targets, max_value = simulated_annealing(initial_states_with_targets, temperature, alpha, max_time , iter_max, k)
     
-    new_states_targets = normalize_data(new_states_targets)
-    aiPlayer = KeyClassifier(new_states_targets, k)
-
+    # new_states_targets = normalize_data(new_states_targets)
+    # aiPlayer = KeyClassifier(new_states_targets, k)
 
     res, value = manyPlaysResults(30)
     npRes = np.asarray(res)
