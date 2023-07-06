@@ -5,24 +5,13 @@ import random
 import time
 from sys import exit
 
-from sklearn.preprocessing import MinMaxScaler, StandardScaler
-from scipy import stats
-import numpy as np
-import pandas as pd
-
 pygame.init()
-global dataset
-global data 
-data = []
-# dataset = pd.DataFrame(columns=['distance', 'game_speed', 'obHeight', 'nextObDistance', 'target'])
-# global aiPlayer
-
 
 # Valid values: HUMAN_MODE or AI_MODE
 GAME_MODE = "AI_MODE"
-# GAME_MODE = "HUMAN_MODE"
-# RENDER_GAME = True #With graphic interface
-RENDER_GAME = False #Without graphic interface
+#GAME_MODE = "HUMAN_MODE"
+RENDER_GAME = True #With graphic interface
+# RENDER_GAME = False #Without graphic interface
 
 
 # Global Constants
@@ -94,6 +83,7 @@ class Dinosaur:
         self.dino_rect = self.image.get_rect()
         self.dino_rect.x = self.X_POS
         self.dino_rect.y = self.Y_POS
+        self.color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
 
     def update(self, userInput):
         if self.dino_duck and not self.dino_jump:
@@ -152,6 +142,9 @@ class Dinosaur:
 
     def draw(self, SCREEN):
         SCREEN.blit(self.image, (self.dino_rect.x, self.dino_rect.y))
+        pygame.draw.rect(SCREEN, self.color,
+                         (self.dino_rect.x, self.dino_rect.y, self.dino_rect.width, self.dino_rect.height), 2)
+
 
     def getXY(self):
         return (self.dino_rect.x, self.dino_rect.y)
@@ -235,6 +228,17 @@ class Bird(Obstacle):
         SCREEN.blit(self.image[self.index // 10], self.rect)
         self.index += 1
 
+
+# class KeyClassifier:
+#     def __init__(self, state):
+#         pass
+
+#     def keySelector(self, distance, obHeight, speed, obType, nextObDistance, nextObHeight, nextObType):
+#         pass
+
+#     def updateState(self, state):
+#         pass
+
 #My Classifier : KNN
 class KeyClassifier:
     def __init__(self, states, k):
@@ -249,13 +253,6 @@ class KeyClassifier:
         distance = distance ** (1/2) #sqrt
         return distance
     
-
-    # def manhattan_distance(self, point1, point2):
-    #     distance = 0
-    #     for i in range(len(point1)):
-    #         distance += abs(point2[i] - point1[i])
-    #     return distance
-    
     def count_classes(self, items):
         counts = {}
         for item in items:
@@ -264,52 +261,6 @@ class KeyClassifier:
             else:
                 counts[item] = 1
         return counts
-
-
-    def get_neighbors(self, actual_state):
-        distances = []
-
-        for state in self.states:
-            state_aux = state[:-1]
-            target = state[-1]
-
-            #state_aux is state without target
-            distance = self.euclidian_distance(state_aux, actual_state)
-            #distance = self.manhattan_distance(state_aux, actual_state)
-            distances.append([distance, target])
-
-        distances.sort(key=lambda x: x[0]) 
-       
-        #Getting neighbors
-        neighbors = []
-        for i in range(0, self.k):
-            neighbors.append(distances[i])
-        return neighbors
-        
-     
-
-    #KNN
-    def keySelector(self, distance, obHeight, speed, obType, nextObDistance, nextObHeight, nextObType):
-        actual_state = [distance, speed, obHeight, nextObDistance]
-        actual_state = normalize_array(actual_state)
-
-        neighbors = self.get_neighbors(actual_state)
-       
-        classes = [neighbor[1] for neighbor in neighbors]
-
-        count = self.count_classes(classes)
-        #In case of a tie, choose the first clf of count dictionary
-        clf = max(count, key=count.get)
-        if(clf == 1):
-            return 'K_UP'
-        else:
-            return 'K_DOWN'
-       
-
-    def updateState(self, state):
-        self.state = state
-        
-
 
 
 def first(x):
@@ -337,20 +288,18 @@ class KeySimplestClassifier(KeyClassifier):
         self.state = state
 
 
-def playerKeySelector(distance, obHeight, game_speed, obType, nextObDistance, nextObHeight,nextObType):
+def playerKeySelector():
     userInputArray = pygame.key.get_pressed()
+
     if userInputArray[pygame.K_UP]:
-        data.append([distance ,game_speed ,obHeight, nextObDistance, 1])
         return "K_UP"
     elif userInputArray[pygame.K_DOWN]:
-        data.append([distance ,game_speed ,obHeight, nextObDistance, 0])
         return "K_DOWN"
     else:
-        data.append([distance ,game_speed ,obHeight, nextObDistance, 0])
         return "K_NO"
-    
-    
-def playGame():
+
+
+def playGame(solutions):
     global game_speed, x_pos_bg, y_pos_bg, points, obstacles
     run = True
 
@@ -358,7 +307,11 @@ def playGame():
     cloud = Cloud()
     font = pygame.font.Font('freesansbold.ttf', 20)
 
-    player = Dinosaur()
+    players = []
+    players_classifier = []
+    solution_fitness = []
+    died = []
+
     game_speed = 10
     x_pos_bg = 0
     y_pos_bg = 383
@@ -368,16 +321,15 @@ def playGame():
     death_count = 0
     spawn_dist = 0
 
-    #Create states and targets together. 
-    def create_initial_states(filename):
-        if userInput == 'K_UP':
-            target = 1
-        else:
-            target = 0 
-        with open(filename, 'a') as f:
-            f.write(str(distance) + ',' + str(game_speed ) + ',' + str(obHeight) + ',' + str(nextObDistance) + ',' + str(target) + '\n')
+    for solution in solutions:
+        players.append(Dinosaur())
+        #players_classifier.append(KeySimplestClassifier(solution))
+        players_classifier.append(KeyClassifier(solution))
 
-   
+
+        solution_fitness.append(0)
+        died.append(False)
+
     def score():
         global points, game_speed
         points += 0.25
@@ -401,7 +353,14 @@ def playGame():
             x_pos_bg = 0
         x_pos_bg -= game_speed
 
-    while run:
+    def statistics():
+        text_1 = font.render(f'Dinosaurs Alive:  {str(died.count(False))}', True, (0, 0, 0))
+        text_3 = font.render(f'Game Speed:  {str(game_speed)}', True, (0, 0, 0))
+
+        SCREEN.blit(text_1, (50, 450))
+        SCREEN.blit(text_3, (50, 480))
+
+    while run and (False in died):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
@@ -410,35 +369,32 @@ def playGame():
         if RENDER_GAME:
             SCREEN.fill((255, 255, 255))
 
-        distance = 1500
-        nextObDistance = 2000
-        obHeight = 0
-        nextObHeight = 0
-        obType = 2
-        nextObType = 2
-        if len(obstacles) != 0:
-            xy = obstacles[0].getXY()
-            distance = xy[0]
-            obHeight = obstacles[0].getHeight()
-            obType = obstacles[0]
+        for i,player in enumerate(players):
+            if not died[i]:
+                distance = 1500
+                nextObDistance = 2000
+                obHeight = 0
+                nextObHeight = 0
+                obType = 2
+                nextObType = 2
+                if len(obstacles) != 0:
+                    xy = obstacles[0].getXY()
+                    distance = xy[0]
+                    obHeight = obstacles[0].getHeight()
+                    obType = obstacles[0]
 
-        if len(obstacles) == 2:
-            nextxy = obstacles[1].getXY()
-            nextObDistance = nextxy[0]
-            nextObHeight = obstacles[1].getHeight()
-            nextObType = obstacles[1]
+                if len(obstacles) == 2:
+                    nextxy = obstacles[1].getXY()
+                    nextObDistance = nextxy[0]
+                    nextObHeight = obstacles[1].getHeight()
+                    nextObType = obstacles[1]
 
-        if GAME_MODE == "HUMAN_MODE":
-            #userInput = playerKeySelector() 
-            userInput = playerKeySelector(distance, obHeight, game_speed, obType, nextObDistance, nextObHeight,
-                                             nextObType)
+                userInput = players_classifier[i].keySelector(distance, obHeight, game_speed, obType, nextObDistance, nextObHeight,nextObType)
 
-            #create_initial_states('data/initial_states_with_target.txt')
+                player.update(userInput)
 
-        else:
-            userInput = aiPlayer.keySelector(distance, obHeight, game_speed, obType, nextObDistance, nextObHeight,
-                                             nextObType)
-        
+                if RENDER_GAME:
+                    player.draw(SCREEN)
 
         if len(obstacles) == 0 or obstacles[-1].getXY()[0] < spawn_dist:
             spawn_dist = random.randint(0, 670)
@@ -449,11 +405,6 @@ def playGame():
             elif random.randint(0, 5) == 5:
                 obstacles.append(Bird(BIRD))
 
-        player.update(userInput)
-
-        if RENDER_GAME:
-            player.draw(SCREEN)
-
         for obstacle in list(obstacles):
             obstacle.update()
             if RENDER_GAME:
@@ -462,6 +413,7 @@ def playGame():
 
         if RENDER_GAME:
             background()
+            statistics()
             cloud.draw(SCREEN)
 
         cloud.update()
@@ -473,15 +425,14 @@ def playGame():
             pygame.display.update()
 
         for obstacle in obstacles:
-            if player.dino_rect.colliderect(obstacle.rect):
-                if RENDER_GAME:
-                    pygame.time.delay(2000)
-                death_count += 1
-                return points
-            
-       
-    
- 
+            for i, player in enumerate(players):
+                if player.dino_rect.colliderect(obstacle.rect) and died[i] == False:
+                    solution_fitness[i] = points
+                    died[i] = True
+
+    return solution_fitness
+
+
 # Change State Operator
 def change_state(state, position, vs, vd):
     aux = state.copy()
@@ -505,21 +456,26 @@ def generate_neighborhood(state):
         for s in new_states:
             if s != []:
                 neighborhood.append(s)
-
     return neighborhood
 
 
 # Gradiente Ascent
 def gradient_ascent(state, max_time):
     start = time.process_time()
-    res, max_value = manyPlaysResults(3)
+    res, max_value = manyPlaysResultsTest(3, state)
     better = True
     end = 0
-
-
     while better and end - start <= max_time:
         neighborhood = generate_neighborhood(state)
         better = False
+
+        results = playGame(neighborhood)
+        for i,value in enumerate(results):
+            if value > max_value:
+                state = neighborhood[i]
+                max_value = value
+                better = True
+        '''
         for s in neighborhood:
             aiPlayer = KeySimplestClassifier(s)
             res, value = manyPlaysResults(3)
@@ -527,6 +483,7 @@ def gradient_ascent(state, max_time):
                 state = s
                 max_value = value
                 better = True
+        '''
         end = time.process_time()
     return state, max_value
 
@@ -552,10 +509,9 @@ def evaluete_state(states):
 
     return value
 
-#For the entire base
 def simulated_annealing(states, temperature, alpha, max_time , iter_max, k):
     best_states = states
-    res, max_value = manyPlaysResults(3)
+    res, max_value = manyPlaysResultsTest(3, best_states)
     start = time.process_time()
     end = 0
 
@@ -576,32 +532,46 @@ def simulated_annealing(states, temperature, alpha, max_time , iter_max, k):
                 new_states = neighbor
 
 
-            aiPlayer = KeyClassifier(new_states, k)
-            res, value = manyPlaysResults(3)
-            if value > max_value:
-                best_states = new_states
-                print('---------')
-                max_value = value
-                print(max_value)
-          
+            # aiPlayer = KeyClassifier(new_states, k)
+            # res, value = manyPlaysResults(3, new_states)
 
+            results = playGame(new_states)
+            for i,value in enumerate(results):
+                best_states = new_states
+                max_value = value
+
+
+         
         temperature = temperature * alpha
         end = time.process_time() 
 
     return best_states, max_value
+        
+
+from scipy import stats
+import numpy as np
+
+def manyPlaysResultsTrain(rounds,solutions):
+    results = []
+
+    for round in range(rounds):
+        results += [playGame(solutions)]
+
+    npResults = np.asarray(results)
+
+    mean_results = np.mean(npResults,axis = 0) - np.std(npResults,axis=0) # axis 0 calcula media da coluna
+    return mean_results
 
 
-
-
-def manyPlaysResults(rounds):
+def manyPlaysResultsTest(rounds,best_solution):
     results = []
     for round in range(rounds):
-        results += [playGame()]
+        results += [playGame([best_solution])[0]]
+
     npResults = np.asarray(results)
     return (results, npResults.mean() - npResults.std())
 
 
-#states with targets
 def load_states(filename):
     with open(filename, 'r') as f:
         lines = f.readlines()
@@ -613,73 +583,29 @@ def load_states(filename):
         return data
 
 
-# def get_base_training():
-#     with open(filename, 'r') as f:
-#         lines = f.readlines()
-#         data = []
-#         for line in lines:
-#             line = line.strip()
-#             line = line.split(',')    
-#             data.append([float(line[0]), float(line[1]), float(line[2]), float(line[3]), float(line[4])])
-#         return data
-
-
-def create_dataset(filename):
-    with open(filename, 'a') as f:
-        for line in data:
-            f.write(str(line[0]) + ',' + str(line[1]) + ',' + str(line[2])  + ',' + str(line[3]) + ',' +  str(line[4]) + "\n")
-
-
-
-
-def print_dataset(dataset):
-    print(dataset)
-
-
 def main():
-    global aiPlayer
-    # initial_state = [(15, 250), (18, 350), (20, 450), (1000, 550)]
-    # aiPlayer = KeySimplestClassifier(initial_state)
-    # best_state, best_value = gradient_ascent(initial_state, 5000)
-    
-    # print(data)
-    # aiPlayer = KeySimplestClassifier(best_state)
 
-    # res, value = manyPlaysResults(30)
+    # initial_state = [(15, 250), (18, 350), (20, 450), (1000, 550)]
+    # best_state, best_value = gradient_ascent(initial_state, 5000)
+    # res, value = manyPlaysResultsTest(30, best_state)
     # npRes = np.asarray(res)
     # print(res, npRes.mean(), npRes.std(), value)
-    # print()
-    # playGame()
-    # print(data)
-    # create_dataset('data/test.txt')
 
-    ###########################
-    global aiPlayer
+    global k
     k = 3
     temperature = 200
     alpha = 0.1
-    max_time = 200
-    iter_max = 200
+    max_time = 100
+    iter_max = 50
 
-    initial_states_with_targets = load_states('data/test.txt')
+    initial_states_with_targets = load_states('data/initial_states_with_target.txt')
     initial_states_with_targets= normalize_data(initial_states_with_targets)
-
-    aiPlayer = KeyClassifier(initial_states_with_targets, k)
-
-
-
-    # new_states_targets, max_value = simulated_annealing(initial_states_with_targets, temperature, alpha, max_time , iter_max, k)
-    
-    # new_states_targets = normalize_data(new_states_targets)
-    # aiPlayer = KeyClassifier(new_states_targets, k)
-
-    res, value = manyPlaysResults(30)
+    best_state, best_value = simulated_annealing(initial_states_with_targets, temperature, alpha, max_time , iter_max, k)
+    res, value = manyPlaysResultsTest(30, best_state)
     npRes = np.asarray(res)
     print(res, npRes.mean(), npRes.std(), value)
-
-    print()
-
-
+   
+  
 
 
 main()

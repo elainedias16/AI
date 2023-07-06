@@ -5,17 +5,15 @@ import random
 import time
 from sys import exit
 
-from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from scipy import stats
 import numpy as np
 import pandas as pd
 
 pygame.init()
-global dataset
+
 global data 
 data = []
-# dataset = pd.DataFrame(columns=['distance', 'game_speed', 'obHeight', 'nextObDistance', 'target'])
-# global aiPlayer
+
 
 
 # Valid values: HUMAN_MODE or AI_MODE
@@ -53,22 +51,22 @@ CLOUD = pygame.image.load(os.path.join("Assets/Other", "Cloud.png"))
 BG = pygame.image.load(os.path.join("Assets/Other", "Track.png"))
 
 
-def normalize_data(states):
-    normalized_data = []
-    for state in states:
-        clf = state[-1]
-        state = state[:-1]
-        normalized_state = normalize_array(state)
-        normalized_state.append(clf)
-        normalized_data.append(normalized_state)
-    return normalized_data
+# def normalize_data(states):
+#     normalized_data = []
+#     for state in states:
+#         clf = state[-1]
+#         state = state[:-1]
+#         normalized_state = state
+#         normalized_state.append(clf)
+#         normalized_data.append(normalized_state)
+#     return normalized_data
 
 
-def normalize_array(array):
-    min_val = min(array)
-    max_val = max(array)
-    normalized_array = [(val - min_val) / (max_val - min_val) for val in array]
-    return normalized_array
+# def normalize_array(array):
+#     min_val = min(array)
+#     max_val = max(array)
+#     normalized_array = [(val - min_val) / (max_val - min_val) for val in array]
+#     return normalized_array
 
 
 class Dinosaur:
@@ -249,13 +247,6 @@ class KeyClassifier:
         distance = distance ** (1/2) #sqrt
         return distance
     
-
-    # def manhattan_distance(self, point1, point2):
-    #     distance = 0
-    #     for i in range(len(point1)):
-    #         distance += abs(point2[i] - point1[i])
-    #     return distance
-    
     def count_classes(self, items):
         counts = {}
         for item in items:
@@ -275,7 +266,6 @@ class KeyClassifier:
 
             #state_aux is state without target
             distance = self.euclidian_distance(state_aux, actual_state)
-            #distance = self.manhattan_distance(state_aux, actual_state)
             distances.append([distance, target])
 
         distances.sort(key=lambda x: x[0]) 
@@ -291,7 +281,8 @@ class KeyClassifier:
     #KNN
     def keySelector(self, distance, obHeight, speed, obType, nextObDistance, nextObHeight, nextObType):
         actual_state = [distance, speed, obHeight, nextObDistance]
-        actual_state = normalize_array(actual_state)
+        actual_state = actual_state
+        #actual_state = normalize_array(actual_state)
 
         neighbors = self.get_neighbors(actual_state)
        
@@ -300,8 +291,11 @@ class KeyClassifier:
         count = self.count_classes(classes)
         #In case of a tie, choose the first clf of count dictionary
         clf = max(count, key=count.get)
+
         if(clf == 1):
             return 'K_UP'
+        elif(clf == 0):
+            return 'K_NO'
         else:
             return 'K_DOWN'
        
@@ -343,7 +337,7 @@ def playerKeySelector(distance, obHeight, game_speed, obType, nextObDistance, ne
         data.append([distance ,game_speed ,obHeight, nextObDistance, 1])
         return "K_UP"
     elif userInputArray[pygame.K_DOWN]:
-        data.append([distance ,game_speed ,obHeight, nextObDistance, 0])
+        data.append([distance ,game_speed ,obHeight, nextObDistance, -1])
         return "K_DOWN"
     else:
         data.append([distance ,game_speed ,obHeight, nextObDistance, 0])
@@ -368,16 +362,7 @@ def playGame():
     death_count = 0
     spawn_dist = 0
 
-    #Create states and targets together. 
-    def create_initial_states(filename):
-        if userInput == 'K_UP':
-            target = 1
-        else:
-            target = 0 
-        with open(filename, 'a') as f:
-            f.write(str(distance) + ',' + str(game_speed ) + ',' + str(obHeight) + ',' + str(nextObDistance) + ',' + str(target) + '\n')
 
-   
     def score():
         global points, game_speed
         points += 0.25
@@ -433,7 +418,7 @@ def playGame():
             userInput = playerKeySelector(distance, obHeight, game_speed, obType, nextObDistance, nextObHeight,
                                              nextObType)
 
-            #create_initial_states('data/initial_states_with_target.txt')
+            
 
         else:
             userInput = aiPlayer.keySelector(distance, obHeight, game_speed, obType, nextObDistance, nextObHeight,
@@ -538,19 +523,26 @@ def generate_neighborhood_sm(states):
     neighborhood = []
     for state in states:
         new_state= [state[0], state[1], state[2], state[3] + random.uniform(0, 1) , state[4]]
-        new_state = normalize_array(new_state)
+        new_state = new_state
         neighborhood.append(new_state)
 
     return neighborhood
 
 
-def evaluete_state(states):
-    value = 0
-    for state in states:
-        for i in range(0, len(state)):
-            value += state[i]
+# def evaluete_state(states):
+#     value = 0
+#     for state in states:
+#         for i in range(0, len(state)):
+#             value += state[i]
 
+#     return value
+
+def evaluete_state(states, k):
+    value = 0
+    aiPlayer = KeyClassifier(states, k)
+    res, value = manyPlaysResults(3)
     return value
+
 
 #For the entire base
 def simulated_annealing(states, temperature, alpha, max_time , iter_max, k):
@@ -564,33 +556,63 @@ def simulated_annealing(states, temperature, alpha, max_time , iter_max, k):
         for _ in range(iter_max):
             neighbor = generate_neighborhood_sm(states)
 
-            cost_neighbor = evaluete_state(neighbor)
-            cost_states = evaluete_state(states)
+            cost_neighbor = evaluete_state(neighbor, k)
+            cost_states = evaluete_state(states, k)
 
             delta = cost_states - cost_neighbor
 
 
             if delta > 0:
-                new_states = neighbor
+                best_states = neighbor
+                max_value = cost_neighbor
+
             elif(random.uniform(0,1) < math.exp(-delta / temperature)):
-                new_states = neighbor
+                best_states = neighbor
+                max_value = cost_neighbor
 
 
-            aiPlayer = KeyClassifier(new_states, k)
-            res, value = manyPlaysResults(3)
-            if value > max_value:
-                best_states = new_states
-                print('---------')
-                max_value = value
-                print(max_value)
-          
 
+            # aiPlayer = KeyClassifier(new_states, k)
+            # res, value = manyPlaysResults(3)
+            # if value > max_value:
+            #     best_states = new_states
+            #     max_value = value          
         temperature = temperature * alpha
         end = time.process_time() 
 
+    iteracao = 2
+    data_training(iteracao, best_states, max_value, temperature, iter_max, max_time, alpha, k)
     return best_states, max_value
 
 
+def data_training(iteracao, dataset, max_value, temperature, iter_max, max_time, alpha, k):
+    path = 'training/iter' + str(iteracao)
+    os.makedirs(path)
+    with open(path + '/states.txt', 'a') as f:
+        for line in dataset:
+            f.write(str(line[0]) + ',' + str(line[1]) + ',' + str(line[2])  + ',' + str(line[3]) + ',' +  str(line[4]) + "\n")
+    with open(path + '/max_value.txt', 'a') as f:
+        f.write(str(max_value) + "\n")
+        f.write('temperature: '+ str(temperature) + "\n")
+        f.write('iter_max: '+ str(iter_max) + "\n")
+        f.write('max_time: '+ str(max_time) + "\n")
+        f.write('alpha: '+ str(alpha) + "\n")
+        f.write('k: '+ str(k) + "\n")
+
+
+# def dataset_res(i, dataset):
+#     path = 'training/iter' + str(i)
+#     with open(path + '/states_res.txt', 'a') as f:
+#         for line in dataset:
+#             f.write(str(line[0]) + ',' + str(line[1]) + ',' + str(line[2])  + ',' + str(line[3]) + ',' +  str(line[4]) + "\n")
+
+
+def res_data(path, res, mean, std, value):
+    with open(path + '/res.txt', 'a') as f:
+        f.write('Results \n')
+        f.write("[" + ", ".join(str(element) for element in res) + "]\n")
+        f.write('Mean std value \n')
+        f.write(str(mean) + " " + str(std) + " " + str(value) + "\n")
 
 
 def manyPlaysResults(rounds):
@@ -612,18 +634,6 @@ def load_states(filename):
             data.append([float(line[0]), float(line[1]), float(line[2]), float(line[3]), float(line[4])])
         return data
 
-
-# def get_base_training():
-#     with open(filename, 'r') as f:
-#         lines = f.readlines()
-#         data = []
-#         for line in lines:
-#             line = line.strip()
-#             line = line.split(',')    
-#             data.append([float(line[0]), float(line[1]), float(line[2]), float(line[3]), float(line[4])])
-#         return data
-
-
 def create_dataset(filename):
     with open(filename, 'a') as f:
         for line in data:
@@ -632,53 +642,60 @@ def create_dataset(filename):
 
 
 
-def print_dataset(dataset):
-    print(dataset)
-
-
 def main():
-    global aiPlayer
+    #Varejao's code
+    # global aiPlayer
     # initial_state = [(15, 250), (18, 350), (20, 450), (1000, 550)]
     # aiPlayer = KeySimplestClassifier(initial_state)
     # best_state, best_value = gradient_ascent(initial_state, 5000)
     
-    # print(data)
     # aiPlayer = KeySimplestClassifier(best_state)
 
     # res, value = manyPlaysResults(30)
     # npRes = np.asarray(res)
     # print(res, npRes.mean(), npRes.std(), value)
     # print()
+
+
+    #To create bases for knn
+    # initial_state = [(15, 250), (18, 350), (20, 450), (1000, 550)]
+    # aiPlayer = KeySimplestClassifier(initial_state)
     # playGame()
-    # print(data)
-    # create_dataset('data/test.txt')
+    # create_dataset('data/states4.txt')
 
-    ###########################
+
+    #****************************************************************************************************#
     global aiPlayer
+    # k = 30
     k = 3
-    temperature = 200
+    temperature = 1000
     alpha = 0.1
-    max_time = 200
-    iter_max = 200
+    max_time = 1000
+    iter_max = 1000000
 
-    initial_states_with_targets = load_states('data/test.txt')
-    initial_states_with_targets= normalize_data(initial_states_with_targets)
-
+    initial_states_with_targets = load_states('data/test2.txt')
+    #initial_states_with_targets= normalize_data(initial_states_with_targets)
     aiPlayer = KeyClassifier(initial_states_with_targets, k)
 
-
-
-    # new_states_targets, max_value = simulated_annealing(initial_states_with_targets, temperature, alpha, max_time , iter_max, k)
+    new_states_targets, max_value = simulated_annealing(initial_states_with_targets, temperature, alpha, max_time , iter_max, k)
     
     # new_states_targets = normalize_data(new_states_targets)
-    # aiPlayer = KeyClassifier(new_states_targets, k)
+    aiPlayer = KeyClassifier(new_states_targets, k)
 
     res, value = manyPlaysResults(30)
     npRes = np.asarray(res)
     print(res, npRes.mean(), npRes.std(), value)
 
+
+    iteracao = 2
+    res_data('training/iter' + str(iteracao), res, npRes.mean(), npRes.std(), value)
+    #dataset do new_states
+    
+    #dataset_res(3, new_states_targets)
     print()
 
+
+    #base test2 eh melhor que a test e melhor que initial_states_with_target
 
 
 

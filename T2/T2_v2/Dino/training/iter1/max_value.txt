@@ -1,0 +1,6 @@
+239.28443319971626
+temperature: 0.2  , comceou em 2
+iter_max: 5
+max_time: 5
+alpha: 0.1
+k: 3

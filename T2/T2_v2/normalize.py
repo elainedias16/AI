@@ -276,13 +276,13 @@ import numpy as np
 # print(normalize_array([1500, 10, 0, 2000, -1]))
 
 
-def normalize_array(array):
-    min_val = min(array)
-    max_val = max(array)
-    normalized_array = [(val - min_val) / (max_val - min_val) for val in array]
-    return normalized_array
+# def normalize_array(array):
+#     min_val = min(array)
+#     max_val = max(array)
+#     normalized_array = [(val - min_val) / (max_val - min_val) for val in array]
+#     return normalized_array
 
-#print(normalize_array([1500, 10, 0, 2000, -1]))
+# #print(normalize_array([1500, 10, 0, 2000, -1]))
 
 
 # def normalize_array(array):
@@ -299,35 +299,35 @@ def normalize_array(array):
 # def normalize_data(states):
 #     normalized_data = []
 #     for state in states:
+# #         normalized_state = normalize_array(state)
+# #         normal_state = normalized_state
+# #         normalized_data.append(normal_state)
+# #     return normalized_data
+
+
+# # print(normalize_data(states_targets))
+
+
+# #na base tem q ser diferente , p qo ultimo é 0 ou 1 ##############
+# states_targets = [[1500, 10, 0, 2000, 0], 
+#                   [1090, 10, 58, 2000, 1],
+#                   [1080, 10, 58, 2000, 0], 
+#                   [1070, 10, 58, 2000, 1]]
+
+
+# def normalize_data(states):
+#     normalized_data = []
+#     for state in states:
+#         clf = state[-1]
+#         state = state[:-1]
 #         normalized_state = normalize_array(state)
-#         normal_state = normalized_state
-#         normalized_data.append(normal_state)
+#         normalized_state.append(clf)
+#         normalized_data.append(normalized_state)
 #     return normalized_data
 
 
-# print(normalize_data(states_targets))
-
-
-#na base tem q ser diferente , p qo ultimo é 0 ou 1 ##############
-states_targets = [[1500, 10, 0, 2000, 0], 
-                  [1090, 10, 58, 2000, 1],
-                  [1080, 10, 58, 2000, 0], 
-                  [1070, 10, 58, 2000, 1]]
-
-
-def normalize_data(states):
-    normalized_data = []
-    for state in states:
-        clf = state[-1]
-        state = state[:-1]
-        normalized_state = normalize_array(state)
-        normalized_state.append(clf)
-        normalized_data.append(normalized_state)
-    return normalized_data
-
-
-states_targets = normalize_data(states_targets) 
-print(states_targets)
+# states_targets = normalize_data(states_targets) 
+# print(states_targets)
 
 
 
@@ -339,3 +339,22 @@ print(states_targets)
 #     normalized_data = scaler.fit_transform(data)
 #     normalized_data = normalized_data.tolist() 
 #     return normalized_data
+
+
+arr = [539.0, 178.5, 43.5, 455.25, 504.25, 384.25, 23.75, 24.0, 97.0, 329.0, 355.5, 312.75, 270.5, 528.5, 335.0, 388.75, 766.5, 53.0, 23.75, 389.0, 351.75, 220.0, 319.0, 303.0, 41.75, 311.75, 580.75, 24.0, 221.25, 256.0] 
+
+# def res_data(path, res, mean, std, value):
+#     with open(path + '/res.txt', 'a') as f:
+#         f.write("[")
+#         f.write(", ".join(str(elemento) for elemento in res))
+#         f.write("]" + "\n")
+#         f.write(str(mean) + " " + str(std) + " " + str(value) + "\n")
+
+def res_data(path, res, mean, std, value):
+    with open(path + '/res.txt', 'a') as f:
+        f.write('Results \n')
+        f.write("[" + ", ".join(str(element) for element in res) + "]\n")
+        f.write('Mean std value \n')
+        f.write(str(mean) + " " + str(std) + " " + str(value) + "\n")
+
+res_data('tests_norma', arr, 287.7, 188.70630178489887, 98.9)
