@@ -9,14 +9,13 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from scipy import stats
 import numpy as np
 import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+from scipy.stats import ttest_rel, wilcoxon
+
 
 pygame.init()
-global dataset
-global data 
-data = []
-# dataset = pd.DataFrame(columns=['distance', 'game_speed', 'obHeight', 'nextObDistance', 'target'])
-# global aiPlayer
-
 
 # Valid values: HUMAN_MODE or AI_MODE
 GAME_MODE = "AI_MODE"
@@ -24,10 +23,16 @@ GAME_MODE = "AI_MODE"
 # RENDER_GAME = True #With graphic interface
 RENDER_GAME = False #Without graphic interface
 
-
 # Global Constants
+global data 
+data = []
+global max_value_training 
+
+max_value_training = {}
 SCREEN_HEIGHT = 600
 SCREEN_WIDTH = 1100
+
+
 if RENDER_GAME:
     SCREEN = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 
@@ -58,7 +63,7 @@ def normalize_data(states):
     for state in states:
         clf = state[-1]
         state = state[:-1]
-        normalized_state = normalize_array(state)
+        normalized_state = state
         normalized_state.append(clf)
         normalized_data.append(normalized_state)
     return normalized_data
@@ -235,6 +240,7 @@ class Bird(Obstacle):
         SCREEN.blit(self.image[self.index // 10], self.rect)
         self.index += 1
 
+
 #My Classifier : KNN
 class KeyClassifier:
     def __init__(self, states, k):
@@ -248,13 +254,6 @@ class KeyClassifier:
             
         distance = distance ** (1/2) #sqrt
         return distance
-    
-
-    # def manhattan_distance(self, point1, point2):
-    #     distance = 0
-    #     for i in range(len(point1)):
-    #         distance += abs(point2[i] - point1[i])
-    #     return distance
     
     def count_classes(self, items):
         counts = {}
@@ -275,7 +274,6 @@ class KeyClassifier:
 
             #state_aux is state without target
             distance = self.euclidian_distance(state_aux, actual_state)
-            #distance = self.manhattan_distance(state_aux, actual_state)
             distances.append([distance, target])
 
         distances.sort(key=lambda x: x[0]) 
@@ -291,8 +289,7 @@ class KeyClassifier:
     #KNN
     def keySelector(self, distance, obHeight, speed, obType, nextObDistance, nextObHeight, nextObType):
         actual_state = [distance, speed, obHeight, nextObDistance]
-        actual_state = normalize_array(actual_state)
-
+        actual_state = actual_state
         neighbors = self.get_neighbors(actual_state)
        
         classes = [neighbor[1] for neighbor in neighbors]
@@ -300,8 +297,11 @@ class KeyClassifier:
         count = self.count_classes(classes)
         #In case of a tie, choose the first clf of count dictionary
         clf = max(count, key=count.get)
+
         if(clf == 1):
             return 'K_UP'
+        elif(clf == 0):
+            return 'K_NO'
         else:
             return 'K_DOWN'
        
@@ -340,13 +340,13 @@ class KeySimplestClassifier(KeyClassifier):
 def playerKeySelector(distance, obHeight, game_speed, obType, nextObDistance, nextObHeight,nextObType):
     userInputArray = pygame.key.get_pressed()
     if userInputArray[pygame.K_UP]:
-        data.append([distance ,game_speed ,obHeight, nextObDistance, 1])
+        data.append([distance,game_speed, obHeight, nextObDistance,  1])
         return "K_UP"
     elif userInputArray[pygame.K_DOWN]:
-        data.append([distance ,game_speed ,obHeight, nextObDistance, 0])
+        data.append([distance, game_speed,obHeight, nextObDistance, -1])
         return "K_DOWN"
     else:
-        data.append([distance ,game_speed ,obHeight, nextObDistance, 0])
+        data.append([distance, game_speed,obHeight, nextObDistance, 0])
         return "K_NO"
     
     
@@ -367,15 +367,6 @@ def playGame():
     obstacles = []
     death_count = 0
     spawn_dist = 0
-
-    #Create states and targets together. 
-    def create_initial_states(filename):
-        if userInput == 'K_UP':
-            target = 1
-        else:
-            target = 0 
-        with open(filename, 'a') as f:
-            f.write(str(distance) + ',' + str(game_speed ) + ',' + str(obHeight) + ',' + str(nextObDistance) + ',' + str(target) + '\n')
 
    
     def score():
@@ -433,7 +424,6 @@ def playGame():
             userInput = playerKeySelector(distance, obHeight, game_speed, obType, nextObDistance, nextObHeight,
                                              nextObType)
 
-            #create_initial_states('data/initial_states_with_target.txt')
 
         else:
             userInput = aiPlayer.keySelector(distance, obHeight, game_speed, obType, nextObDistance, nextObHeight,
@@ -534,58 +524,50 @@ def gradient_ascent(state, max_time):
 
 # state = [distance, speed, obHeight, nextObDistance]
 # Neighborhood
-def generate_neighborhood_sm(states): 
+def generate_neighborhood_sm(states):
     neighborhood = []
-    for state in states:
-        new_state= [state[0], state[1], state[2], state[3] + random.uniform(0, 1) , state[4]]
-        new_state = normalize_array(new_state)
-        neighborhood.append(new_state)
-
+    for _ in range(3):
+        neighbor = []
+        for state in states:
+            new_state = [state[0] + random.uniform(0, 1), state[1], state[2] + random.uniform(0, 1), state[3] + random.uniform(0, 1), state[4]] #so tinha o random no state 3
+            neighbor.append(new_state)
+        neighborhood.append(neighbor)
     return neighborhood
 
 
-def evaluete_state(states):
+def evaluete_state(states, k):
     value = 0
-    for state in states:
-        for i in range(0, len(state)):
-            value += state[i]
-
+    aiPlayer = KeyClassifier(states, k)
+    aiPlayer.updateState(states)
+    res, value = manyPlaysResults(3)
     return value
 
-#For the entire base
+
 def simulated_annealing(states, temperature, alpha, max_time , iter_max, k):
     best_states = states
     res, max_value = manyPlaysResults(3)
     start = time.process_time()
     end = 0
-
     while temperature >= 1 and end-start <= max_time:
+        print('Temperatura : ' , temperature)
+        for i in range(0, iter_max): 
+            neighborhood = generate_neighborhood_sm(states)
+            for j in range(0, len(neighborhood)):
+                cost_neighbor = evaluete_state(neighborhood[j], k)
+                cost_states = evaluete_state(states, k)
+                delta = cost_states - cost_neighbor
 
-        for _ in range(iter_max):
-            neighbor = generate_neighborhood_sm(states)
-
-            cost_neighbor = evaluete_state(neighbor)
-            cost_states = evaluete_state(states)
-
-            delta = cost_states - cost_neighbor
-
-
-            if delta > 0:
-                new_states = neighbor
-            elif(random.uniform(0,1) < math.exp(-delta / temperature)):
-                new_states = neighbor
-
-
-            aiPlayer = KeyClassifier(new_states, k)
-            res, value = manyPlaysResults(3)
-            if value > max_value:
-                best_states = new_states
-                print('---------')
-                max_value = value
-                print(max_value)
-          
-
+                if delta > 0:
+                    best_states = neighborhood[j]
+                    max_value = cost_neighbor
+                elif(random.uniform(0,1) < math.exp(-delta / temperature)):
+                    best_states = neighborhood[j]
+                    max_value = cost_neighbor
+        
+        max_value_training[temperature] = max_value
+        print(max_value) 
         temperature = temperature * alpha
+        print('\n') 
         end = time.process_time() 
 
     return best_states, max_value
@@ -601,7 +583,12 @@ def manyPlaysResults(rounds):
     return (results, npResults.mean() - npResults.std())
 
 
-#states with targets
+def create_dataset(filename):
+    with open(filename, 'a') as f:
+        for line in data:
+            f.write(str(line[0]) + ',' + str(line[1]) + ',' + str(line[2])  + ',' + str(line[3]) + ',' +  str(line[4]) + "\n")
+
+
 def load_states(filename):
     with open(filename, 'r') as f:
         lines = f.readlines()
@@ -612,74 +599,116 @@ def load_states(filename):
             data.append([float(line[0]), float(line[1]), float(line[2]), float(line[3]), float(line[4])])
         return data
 
-
-# def get_base_training():
-#     with open(filename, 'r') as f:
-#         lines = f.readlines()
-#         data = []
-#         for line in lines:
-#             line = line.strip()
-#             line = line.split(',')    
-#             data.append([float(line[0]), float(line[1]), float(line[2]), float(line[3]), float(line[4])])
-#         return data
-
-
-def create_dataset(filename):
+def dataset_sm(filename, dataset):
     with open(filename, 'a') as f:
-        for line in data:
+        for line in dataset:
             f.write(str(line[0]) + ',' + str(line[1]) + ',' + str(line[2])  + ',' + str(line[3]) + ',' +  str(line[4]) + "\n")
 
 
+def boxplot(my_scores, teacher_scores):
 
 
-def print_dataset(dataset):
-    print(dataset)
+    data = [my_scores, teacher_scores]
+    plt.boxplot(data, labels=['My Scores', 'Teacher Scores'], patch_artist=True, boxprops=dict(facecolor='lightblue'))
+    plt.xlabel('Groups')
+    plt.ylabel('Scores')
+    plt.title('Boxplot of Scores')
+    plt.savefig('Boxplot of Scores.png')
+    plt.show()
 
+
+def tests_wilcoxon_ttest_rel(my_scores, teacher_scores):
+    scores = []
+    clf = ['my_score', 'teacher_score']
+
+    scores.append(my_scores)
+    scores.append(teacher_scores)
+
+    size = len(scores)
+    matrix_p_values = np.zeros((size, size)).tolist()
+
+    for i_index, i in enumerate(scores):
+        for j_index, j in enumerate(scores):
+            if i_index == j_index:
+                matrix_p_values[i_index][j_index] = clf[i_index]
+                continue
+            else:
+                statistic, p_value = ttest_rel(i, j)  # Teste Pareado
+                matrix_p_values[i_index][j_index] = p_value
+
+                statistic, p_value = wilcoxon(i, j, method='approx')
+                matrix_p_values[i_index][j_index] = p_value
+    df_p_values = pd.DataFrame(matrix_p_values)
+    return df_p_values
+
+
+def table_results(my_scores, teacher_scores):
+    data = {'Coluna1': teacher_scores, 'Coluna2': my_scores}
+    df = pd.DataFrame(data)
+
+    df.loc['Média'] = df.mean()
+    df.loc['Desvio Padrão'] = df.std()
+
+    return df
+
+
+#Print res, mean, std, value in a file
+def res_data(training, res, mean, std, value):
+    path = 'training/training' + str(training)
+    if not os.path.exists(path):
+        os.makedirs(path) 
+    with open(path + '/res.txt', 'a') as f:
+        f.write('Results \n')
+        f.write("[" + ", ".join(str(element) for element in res) + "]\n")
+        f.write('Mean std value \n')
+        f.write(str(mean) + " " + str(std) + " " + str(value) + "\n \n \n")
+
+
+def data_training(max_value_training, training):
+    with open('training/training' + str(training) + '/max_value.txt', 'a') as f:
+        for temperatura, max_value in max_value_training.items():
+            f.write(f'{temperatura}, {max_value}\n')
 
 def main():
     global aiPlayer
-    # initial_state = [(15, 250), (18, 350), (20, 450), (1000, 550)]
-    # aiPlayer = KeySimplestClassifier(initial_state)
-    # best_state, best_value = gradient_ascent(initial_state, 5000)
-    
-    # print(data)
-    # aiPlayer = KeySimplestClassifier(best_state)
 
-    # res, value = manyPlaysResults(30)
-    # npRes = np.asarray(res)
-    # print(res, npRes.mean(), npRes.std(), value)
-    # print()
-    # playGame()
-    # print(data)
-    # create_dataset('data/test.txt')
+    '''Best Parameters found'''
+    k = 5
+    temperature = 900
+    alpha = 0.8
+    max_time = 5500
+    iter_max = 2
 
-    ###########################
-    global aiPlayer
-    k = 3
-    temperature = 200
-    alpha = 0.1
-    max_time = 200
-    iter_max = 200
 
-    initial_states_with_targets = load_states('data/test.txt')
-    initial_states_with_targets= normalize_data(initial_states_with_targets)
-
+    initial_states_with_targets = load_states('data/test3.txt')
     aiPlayer = KeyClassifier(initial_states_with_targets, k)
 
-
-
-    # new_states_targets, max_value = simulated_annealing(initial_states_with_targets, temperature, alpha, max_time , iter_max, k)
-    
-    # new_states_targets = normalize_data(new_states_targets)
-    # aiPlayer = KeyClassifier(new_states_targets, k)
-
+    new_states_targets, max_value = simulated_annealing(initial_states_with_targets, temperature, alpha, max_time , iter_max, k)
+    aiPlayer = KeyClassifier(new_states_targets, k)
     res, value = manyPlaysResults(30)
     npRes = np.asarray(res)
     print(res, npRes.mean(), npRes.std(), value)
-
     print()
 
+    training = 23
+    res_data(training, res, npRes.mean(), npRes.std(), value)
+    data_training(max_value_training, training)
+    #Getting the base of simulated annealing
+    dataset_sm('training/training' + str(training) + '/states.txt' , new_states_targets)
 
+
+
+    # teacher_scores = [1214.0, 759.5, 1164.25, 977.25, 1201.0, 930.0, 1427.75, 799.5, 1006.25, 783.5, 728.5, 419.25, 1389.5, 730.0,
+    #                 1306.25, 675.5, 1359.5, 1000.25, 1284.5, 1350.0, 751.0, 1418.75, 1276.5, 1645.75, 860.0, 745.5, 1426.25, 783.5,
+    #                 1149.75, 1482.25]
+    # boxplot(res, teacher_scores)
+    # table_results(res, teacher_scores)
+    # # table_results(res, teacher_scores)
+    # print( table_results(res, teacher_scores))
+    # print('\nTestes wilcoxon_ttest ')
+    # tests_wilcoxon_ttest_rel(res, teacher_scores)
+    # print(tests_wilcoxon_ttest_rel(res, teacher_scores))
+    
 
 
 main()
